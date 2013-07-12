@@ -50,13 +50,13 @@ class DateY(XY):
 
     def _todate(self, d):
         """ Converts a number to a date """
-        return str(self._offset + datetime.timedelta(seconds=d or 0))
+        return str(self._offset + datetime.timedelta(days=d or 0))
 
     def _tonumber(self, d):
         """ Converts a date to a number """
         if d is None:
             return None
-        return total_seconds(d - self._offset)
+        return (d - self._offset).days
 
     def _get_value(self, values, i):
         return 'x=%s, y=%s' % (
