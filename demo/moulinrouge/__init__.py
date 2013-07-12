@@ -16,12 +16,12 @@
 #
 # You should have received a copy of the GNU Lesser General Public License
 # along with pygal. If not, see <http://www.gnu.org/licenses/>.
-from flask import Flask, render_template
+from flask import Flask, render_template, Response
 import pygal
 from pygal.config import Config
 from pygal.util import cut
 from pygal.graph import CHARTS_NAMES
-from pygal.style import styles
+from pygal.style import styles, parametric_styles
 from base64 import (
     urlsafe_b64encode as b64encode,
     urlsafe_b64decode as b64decode)
@@ -84,7 +84,9 @@ def create_app():
     @app.route("/")
     def index():
         return render_template(
-            'index.jinja2', styles=styles,
+            'index.jinja2', styles=styles, parametric_styles=parametric_styles,
+            parametric_colors=(
+                '#ff5995', '#b6e354', '#feed6c', '#8cedff', '#9e6ffe'),
             links=links, charts_name=CHARTS_NAMES)
 
     @app.route("/svg/<type>/<series>/<config>")
@@ -94,13 +96,33 @@ def create_app():
             graph.add(title, values)
         return graph.render_response()
 
+    @app.route("/sparkline/<style>")
+    @app.route("/sparkline/parameric/<style>/<color>")
+    def sparkline(style, color=None):
+        if color is None:
+            style = styles[style]
+        else:
+            style = parametric_styles[style](color)
+
+        line = pygal.Line(style=style, pretty_print=True)
+        line.add('_', [random.randrange(0, 10) for _ in range(25)])
+        return Response(
+            line.render_sparkline(height=40), mimetype='image/svg+xml')
+
     @app.route("/all")
-    @app.route("/all/style=<style>")
+    @app.route("/all/<style>")
+    @app.route("/all/<style>/<color>")
+    @app.route("/all/<style>/<color>/<base_style>")
     @app.route("/all/interpolate=<interpolate>")
-    def all(style='default', interpolate=None):
+    def all(style='default', color=None, interpolate=None, base_style=None):
         width, height = 600, 400
         data = random.randrange(1, 10)
         order = random.randrange(1, 10)
+        if color is None:
+            style = styles[style]
+        else:
+            style = parametric_styles[style](
+                color, base_style=styles[base_style or 'default'])
         xy_series = _random(data, order)
         other_series = []
         for title, values in xy_series:
@@ -114,7 +136,7 @@ def create_app():
         config.fill = bool(random.randrange(0, 2))
         config.human_readable = True
         config.interpolate = interpolate
-        config.style = styles[style]
+        config.style = style
         config.x_labels = [random_label() for i in range(data)]
         svgs = []
         for chart in pygal.CHARTS:
@@ -167,11 +189,33 @@ def create_app():
         order = random.randrange(1, 10)
         series = b64encode(pickle.dumps(_random_series(type, data, order)))
         svgs = []
-        for interpolation in (
-                'linear', 'slinear', 'nearest', 'zero', 'quadratic', 'cubic',
-                'krogh', 'barycentric', 'univariate', 4, 5, 6, 7, 8):
+        for interpolation in 'quadratic', 'cubic', 'lagrange', 'trigonometric':
             config.title = "%s interpolation" % interpolation
             config.interpolate = interpolation
+            svgs.append({'type': 'StackedLine',
+                         'series': series,
+                         'config': b64encode(pickle.dumps(config))})
+
+        for params in [
+                {'type': 'catmull_rom'},
+                {'type': 'finite_difference'},
+                {'type': 'cardinal', 'c': .25},
+                {'type': 'cardinal', 'c': .5},
+                {'type': 'cardinal', 'c': .75},
+                {'type': 'cardinal', 'c': 1.5},
+                {'type': 'cardinal', 'c': 2},
+                {'type': 'cardinal', 'c': 5},
+                {'type': 'kochanek_bartels', 'b': 1, 'c': 1, 't': 1},
+                {'type': 'kochanek_bartels', 'b': -1, 'c': 1, 't': 1},
+                {'type': 'kochanek_bartels', 'b': 1, 'c': -1, 't': 1},
+                {'type': 'kochanek_bartels', 'b': 1, 'c': 1, 't': -1},
+                {'type': 'kochanek_bartels', 'b': -1, 'c': 1, 't': -1},
+                {'type': 'kochanek_bartels', 'b': -1, 'c': -1, 't': 1},
+                {'type': 'kochanek_bartels', 'b': -1, 'c': -1, 't': -1}
+        ]:
+            config.title = "Hermite interpolation with params %r" % params
+            config.interpolate = 'hermite'
+            config.interpolation_parameters = params
             svgs.append({'type': 'StackedLine',
                          'series': series,
                          'config': b64encode(pickle.dumps(config))})
@@ -180,4 +224,21 @@ def create_app():
                                svgs=svgs,
                                width=width,
                                height=height)
+
+    @app.route("/raw_svgs/")
+    def raw_svgs():
+        svgs = []
+        for color in styles['neon'].colors:
+            chart = pygal.Pie(style=parametric_styles['RotateStyle'](color))
+            chart.title = color
+            chart.disable_xml_declaration = True
+            chart.explicit_size = True
+            chart.js = [
+                'http://l:2343/svg.jquery.js',
+                'http://l:2343/pygal-tooltips.js']
+            for i in range(6):
+                chart.add(str(i), 2 ** i)
+            svgs.append(chart.render())
+        return render_template('raw_svgs.jinja2', svgs=svgs)
+
     return app

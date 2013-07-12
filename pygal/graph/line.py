@@ -62,7 +62,7 @@ class Line(Graph):
         if rescale and self.secondary_series:
             points = [
                 (x, self._scale_diff + (y - self._scale_min_2nd) * self._scale)
-                for x, y in serie.points]
+                for x, y in serie.points if y is not None]
         else:
             points = serie.points
         view_values = list(map(self.view, points))
@@ -117,8 +117,8 @@ class Line(Graph):
 
         if self.include_x_axis:
         # Y Label
-            self._box.ymin = min(self._min, 0)
-            self._box.ymax = max(self._max, 0)
+            self._box.ymin = min(self._min or 0, 0)
+            self._box.ymax = max(self._max or 0, 0)
         else:
             self._box.ymin = self._min
             self._box.ymax = self._max

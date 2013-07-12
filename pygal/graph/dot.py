@@ -32,10 +32,10 @@ class Dot(Graph):
 
     _adapters = [positive]
 
-    def _axes(self):
-        """Draw axes"""
-        self._x_axis(False)
-        self._y_axis(False)
+    # def _axes(self):
+    #     """Draw axes"""
+    #     self._x_axis(False)
+    #     self._y_axis(False)
 
     def dot(self, serie_node, serie, r_max):
         """Draw a dot line"""
@@ -52,7 +52,7 @@ class Dot(Graph):
             self.svg.node(dots, 'circle', cx=x, cy=y, r=size,
                           class_='dot reactive tooltip-trigger')
 
-            self._tooltip_data(dots, value, x, y)
+            self._tooltip_data(dots, value, x, y, classes='centered')
             self._static_value(serie_node, value, x, y)
 
     def _compute(self):

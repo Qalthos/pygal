@@ -22,6 +22,7 @@ Config module with all options
 """
 from copy import deepcopy
 from pygal.style import Style, DefaultStyle
+from pygal.interpolate import INTERPOLATIONS
 
 
 class FontSizes(object):
@@ -56,11 +57,15 @@ class Key(object):
 
     @property
     def is_numeric(self):
-        return self.type == int
+        return self.type in (int, float)
 
     @property
     def is_string(self):
         return self.type == str
+
+    @property
+    def is_dict(self):
+        return self.type == dict
 
     @property
     def is_list(self):
@@ -74,6 +79,17 @@ class Key(object):
                 map(
                     self.subtype, map(
                         lambda x: x.strip(), value.split(','))))
+        elif self.type == dict:
+            rv = {}
+            for pair in value.split(','):
+                key, val = pair.split(':')
+                key = key.strip()
+                val = val.strip()
+                try:
+                    rv[key] = self.subtype(val)
+                except:
+                    rv[key] = val
+            return rv
         return self.type(value)
 
 
@@ -104,11 +120,25 @@ class Config(object):
         None, str, "Look",
         "Graph title.", "Leave it to None to disable title.")
 
+    x_title = Key(
+        None, str, "Look",
+        "Graph X-Axis title.", "Leave it to None to disable X-Axis title.")
+
+    y_title = Key(
+        None, str, "Look",
+        "Graph Y-Axis title.", "Leave it to None to disable Y-Axis title.")
+
     width = Key(
         800, int, "Look", "Graph width")
 
     height = Key(
         600, int, "Look", "Graph height")
+
+    show_x_guides = Key(False, bool, "Look",
+                        "Set to true to always show x guide lines")
+
+    show_y_guides = Key(True, bool, "Look",
+                        "Set to false to hide y guide lines")
 
     show_dots = Key(True, bool, "Look", "Set to false to remove dots")
 
@@ -132,6 +162,16 @@ class Config(object):
 
     rounded_bars = Key(
         None, int, "Look", "Set this to the desired radius in px")
+
+    spacing = Key(
+        10, int, "Look",
+        "Space between titles/legend/axes")
+
+    margin = Key(
+        20, int, "Look",
+        "Margin around chart")
+
+    tooltip_border_radius = Key(0, int, "Look", "Tooltip border radius")
 
     ############ Label ############
     x_labels = Key(
@@ -161,6 +201,9 @@ class Config(object):
         "You can specify explicit y labels",
         "Must be a list of numbers", float)
 
+    show_y_labels = Key(
+        True, bool, "Label", "Set to false to hide y-labels")
+
     x_label_rotation = Key(
         0, int, "Label", "Specify x labels rotation angles", "in degrees")
 
@@ -181,10 +224,15 @@ class Config(object):
 
     interpolate = Key(
         None, str, "Value", "Interpolation",
-        "May be 'quadratic' or 'cubic'")
+        "May be %s" % ' or '.join(INTERPOLATIONS))
 
     interpolation_precision = Key(
         250, int, "Value", "Number of interpolated points between two values")
+
+    interpolation_parameters = Key(
+        {}, dict, "Value", "Various parameters for parametric interpolations",
+        "ie: For hermite interpolation, you can set the cardinal tension with"
+        "{'type': 'cardinal', 'c': .5}", int)
 
     order_min = Key(
         None, int, "Value", "Minimum order of scale, defaults to None")
@@ -211,7 +259,7 @@ class Config(object):
 
     value_font_size = Key(8, int, "Text", "Value font size")
 
-    tooltip_font_size = Key(20, int, "Text", "Tooltip font size")
+    tooltip_font_size = Key(16, int, "Text", "Tooltip font size")
 
     title_font_size = Key(16, int, "Text", "Title font size")
 
@@ -257,6 +305,10 @@ class Config(object):
     strict = Key(
         False, bool, "Misc",
         "If True don't try to adapt / filter wrong values")
+
+    no_prefix = Key(
+        False, bool, "Misc",
+        "Don't prefix css")
 
     def __init__(self, **kwargs):
         """Can be instanciated with config kwargs"""

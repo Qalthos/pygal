@@ -23,11 +23,14 @@ It is used to delegate rendering to real objects but keeping config in place
 
 """
 
+from __future__ import division
 import io
 import sys
 from pygal.config import Config
+from pygal._compat import u
 from pygal.graph import CHARTS_NAMES
 from pygal.util import prepare_values
+from uuid import uuid4
 
 
 REAL_CHARTS = {}
@@ -44,6 +47,7 @@ class Ghost(object):
         """Init config"""
         name = self.__class__.__name__
         self.cls = REAL_CHARTS[name]
+        self.uuid = str(uuid4())
         if config and isinstance(config, type):
             config = config()
 
@@ -69,11 +73,13 @@ class Ghost(object):
     def make_series(self, series):
         return prepare_values(series, self.config, self.cls)
 
-    def make_instance(self):
+    def make_instance(self, overrides={}):
         self.config(**self.__dict__)
+        self.config.__dict__.update(overrides)
         series = self.make_series(self.raw_series)
         secondary_series = self.make_series(self.raw_series2)
-        self._last__inst = self.cls(self.config, series, secondary_series)
+        self._last__inst = self.cls(
+            self.config, series, secondary_series, self.uuid)
         return self._last__inst
 
     # Rendering
@@ -108,6 +114,41 @@ class Ghost(object):
         import cairosvg
         return cairosvg.svg2png(
             bytestring=self.render(), write_to=filename, dpi=dpi)
+
+    def render_sparktext(self, relative_to=None):
+        """Make a mini text sparkline from chart"""
+        bars = u('▁▂▃▄▅▆▇█')
+        if len(self.raw_series) == 0:
+            return u('')
+        values = list(self.raw_series[0][1])
+        if len(values) == 0:
+            return u('')
+
+        chart = u('')
+        values = list(map(lambda x: max(x, 0), values))
+
+        vmax = max(values)
+        if relative_to is None:
+            relative_to = min(values)
+        divisions = len(bars) - 1
+        for value in values:
+            chart += bars[int(divisions *
+                              (value - relative_to) / (vmax - relative_to))]
+        return chart
+
+    def render_sparkline(self, **kwargs):
+        spark_options = dict(
+            width=200,
+            height=50,
+            show_dots=False,
+            show_legend=False,
+            show_y_labels=False,
+            spacing=0,
+            margin=5,
+            explicit_size=True
+        )
+        spark_options.update(kwargs)
+        return self.make_instance(spark_options).render()
 
     def _repr_png_(self):
         """Display png in IPython notebook"""
